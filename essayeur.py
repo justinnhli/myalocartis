@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+from bisect import bisect
 import pickle
 import random
+import itertools
 import re
 import sys
 
@@ -9,6 +11,9 @@ from lingtools import stem, is_stop_word
 
 class Essayeur:
 	MAX_NGRAM = 4
+	GENERIC_RESPONSES = set((
+			"I don't understand what you're saying.",
+			))
 
 	def __init__(self):
 		# settings
@@ -19,9 +24,9 @@ class Essayeur:
 		# statistics
 		self.ngrams = {}
 		# decision state
-		self.original_text = []
-		self.stemmed_text = []
-		self.acceptable_responses = []
+		self.clear_decision_state()
+		# future state
+		self.next_type = ""
 		# initialization
 		for i in range(0, Essayeur.MAX_NGRAM):
 			self.ngrams[i+1] = {}
@@ -67,13 +72,19 @@ class Essayeur:
 		self.update_statistics(text)
 		for word, stem in zip(self.original_text, self.stemmed_text):
 			if not is_stop_word(word):
-				self.acceptable_responses.append("What do you mean by \"{}\"?".format(word))
+				self.propose_response("What do you mean by \"{}\"?".format(word), "definition")
 		response = self.select_response()
 		self.update_history(text, response)
 		return response
 
 	def select_response(self):
-		return random.choice(self.acceptable_responses)
+		original_responses = dict((key, value) for key, value in self.acceptable_responses.items() if key not in self.responses)
+		# TODO do next_type (symbolic) selection
+		if len(original_responses):
+			choices, weights = zip(*((key, value[1]) for key, value in original_responses.items()))
+			cumdist = list(itertools.accumulate(weights))
+			return choices[bisect(cumdist, random.random() * cumdist[-1])]
+		return random.choice(Essayeur.GENERIC_RESPONSES)
 
 	def update_statistics(self, text):
 		self.stemmed_text = [stem(word) for word in text.split()]
@@ -86,10 +97,14 @@ class Essayeur:
 		self.transcript.append(text)
 		self.responses.append(response)
 
+	def propose_response(self, response, next_type, utility=1):
+		self.acceptable_responses[response] = (next_type, utility)
+
 	def clear_decision_state(self):
 		self.original_text = []
 		self.stemmed_text = []
-		self.acceptable_responses = []
+		self.acceptable_responses = {} # {response: (next_type, utility)
+		self.sentence_type = set()
 
 def cli(essayeur):
 	print("type \"\\help\" to see a list of commands")
@@ -110,4 +125,4 @@ if __name__ == "__main__":
 	try:
 		cli(essayeur)
 	except KeyboardInterrupt:
-		pass
+		print("")
