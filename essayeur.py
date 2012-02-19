@@ -36,7 +36,7 @@ class Essayeur:
 		if text.startswith("\\"):
 			self.process_command(text)
 		elif text:
-			return self.respond(text)
+			return self.decide_response(text)
 		return None
 
 	def process_command(self, statement):
@@ -65,26 +65,31 @@ class Essayeur:
 				pickle.dump(essayeur, fd)
 			print("Essayeur saved to {}".format(tokens[1]))
 
-	def respond(self, text):
-		text = re.sub("^[^'0-9A-Za-z]*", "", re.sub("[^[^'0-9A-Za-z]$", "", text.strip()))
+	def decide_response(self, text):
 		self.clear_decision_state()
-		self.original_text = text.split()
+		text = re.sub(" +", " ", text.strip())
+		text = re.sub("[^[^'0-9A-Za-z]$", "", text)
+		text = re.sub("^[^'0-9A-Za-z]*", "", text)
+		self.original_text = text
+		self.split_text = text.split()
 		self.update_statistics(text)
-		for word, stem in zip(self.original_text, self.stemmed_text):
+		for word, stem in zip(self.split_text, self.stemmed_text):
 			if not is_stop_word(word):
 				self.propose_response("What do you mean by \"{}\"?".format(word), "definition")
 		response = self.select_response()
-		self.update_history(text, response)
+		self.apply_response(response)
 		return response
 
 	def select_response(self):
 		original_responses = dict((key, value) for key, value in self.acceptable_responses.items() if key not in self.responses)
 		# TODO do next_type (symbolic) selection
 		if len(original_responses):
-			choices, weights = zip(*((key, value[1]) for key, value in original_responses.items()))
-			cumdist = list(itertools.accumulate(weights))
-			return choices[bisect(cumdist, random.random() * cumdist[-1])]
+			return Essayeur.softmax(*((key, value[1]) for key, value in original_responses.items()))
 		return random.choice(Essayeur.GENERIC_RESPONSES)
+
+	def apply_response(self, response):
+		self.next_type = self.acceptable_responses[response][0]
+		self.update_history(self.original_text, response)
 
 	def update_statistics(self, text):
 		self.stemmed_text = [stem(word) for word in text.split()]
@@ -101,10 +106,17 @@ class Essayeur:
 		self.acceptable_responses[response] = (next_type, utility)
 
 	def clear_decision_state(self):
-		self.original_text = []
-		self.stemmed_text = []
+		self.original_text = ""
+		self.split_text = []
+		self.stemmed_split_text = []
 		self.acceptable_responses = {} # {response: (next_type, utility)
 		self.sentence_type = set()
+
+	@staticmethod
+	def softmax(*weighted_choices):
+		choices, weights = zip(*weighted_choices)
+		cumdist = list(itertools.accumulate(weights))
+		return choices[bisect(cumdist, random.random() * cumdist[-1])]
 
 def cli(essayeur):
 	print("type \"\\help\" to see a list of commands")
