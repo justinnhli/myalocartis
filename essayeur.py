@@ -9,6 +9,37 @@ import sys
 
 from lingtools import stem, is_stop_word
 
+class Cartographer:
+	def __init__(self, text):
+		self.qid = 0
+		self.nodes = {}
+		self.qid_map = {}
+		self.nodes[text] = set()
+		self.qid_map[self.qid] = text
+		self.qid += 1
+	def explore(self, source, text):
+		text = re.sub(" +", " ", text.strip())
+		text = re.sub("[^[^'0-9A-Za-z]$", "", text)
+		text = re.sub("^[^'0-9A-Za-z]*", "", text)
+		for word, stem in ((word, stem(word)) for word in text.split()):
+			if not is_stop_word(word):
+				self.add(source, "define \"{}\"".format(word))
+	def add(self, source, question):
+		if question in self.nodes:
+			self.nodes[question].add(source)
+		else:
+			self.nodes.setdefault(question, set()).add(source)
+			self.qid_map[self.qid] = question
+			self.qid += 1
+	def print_dot(self):
+		print("digraph {")
+		print("    overlap=false")
+		for qid, question in self.qid_map.items():
+			print("    Q{qid} [label=\"Q{qid}\\n{question}\"]".format(qid=qid, question=question.replace('"', r'\"')))
+			for source in self.nodes[question]:
+				print("    Q{source} -> Q{qid}".format(source=source, qid=qid))
+		print("}")
+
 class Essayeur:
 	MAX_NGRAM = 4
 	GENERIC_RESPONSES = set((
@@ -137,6 +168,13 @@ def cli(essayeur):
 		text = input("{}> ".format(len(essayeur.transcript)))
 
 if __name__ == "__main__":
+	carto = Cartographer("I am uncomfortable with the fact that we're all alone together.")
+	carto.add(0, "clarify \"we\"")
+	carto.add(0, "define \"alone together\"")
+	carto.add(0, "define \"uncomfortable\"")
+	carto.add(0, "justify \"we're all alone together\"")
+	carto.print_dot()
+	exit()
 	if len(sys.argv) == 2:
 		with open(sys.argv[1], "rb") as fd:
 			essayeur = pickle.load(fd)
