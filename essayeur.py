@@ -40,19 +40,27 @@ class Essayeur:
 		return None
 
 	def process_command(self, statement):
+		# TODO turn this into an Essayeur argparse object
 		statement = statement[1:]
 		tokens = statement.split()
 		command = tokens[0]
 		if command == "choices":
 			num_choices = len(self.acceptable_responses)
-			for index, response in enumerate(self.acceptable_responses):
+			for index, response in enumerate(self.acceptable_responses.keys()):
 				print("{:{width}}: {}".format(index, response, width=num_choices))
+		elif command == "force":
+			choice = int(tokens[1])
+			response = list(self.acceptable_responses.keys())[int(tokens[1])]
+			self.responses = self.responses[:-1]
+			self.responses.append(response)
+			print(response)
 		elif command == "help":
-			print(re.sub("^\t*", "    ", """
+			print(re.sub("^\t*", "    ", r"""
 					\choices    Show all considered repsonses
 					\exit       Quit this program
+					\force N    Forace the selected response instead
 					\help       Print this help message
-					\history    Print the history of Essayeur
+					\history    Print a transcript of the current session
 					\quit       Quit this program
 					\save FILE  Save the state of Essayeur to FILE
 					""".strip(), flags=re.MULTILINE))
