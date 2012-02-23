@@ -45,12 +45,14 @@ class Cartographer:
 			self.nodes[source] = Node(source, "", text)
 		for word, stem in ((word, stem_word(word)) for word in text.split()):
 			if not is_stop_word(word):
-				self.add(source, "define \"{}\"".format(word))
+				self.add(source, "define \"{}\"".format(word.lower()))
 		dot = self.to_dot()
 
 	def add(self, source, question):
 		if question in self.questions:
-			self.nodes[self.questions[question]].sources.add(source)
+			qid = self.questions[question]
+			if qid != source:
+				self.nodes[qid].sources.add(source)
 		else:
 			node = Node(self.qid, question)
 			node.sources.add(source)
@@ -60,7 +62,7 @@ class Cartographer:
 
 	def to_dot(self):
 		result = ["digraph {",]
-		result.append("    overlap=false")
+		result.append("    overlap=scalexy")
 		for qid, node in self.nodes.items():
 			result.extend(node.to_dot_list())
 		result.append("}")
@@ -69,6 +71,7 @@ class Cartographer:
 def cli(carto, file=None):
 	text = ""
 	while not text[:4] in ("exit", "quit"):
+		print_state = False
 		if text:
 			text = re.sub(" +", " ", text.strip())
 			text = re.sub("[^[^'0-9A-Za-z]$", "", text)
@@ -76,14 +79,7 @@ def cli(carto, file=None):
 			cmd, args = text.split(" ", 1)
 			if cmd.isdigit():
 				carto.expand(int(cmd), args)
-				dot = carto.to_dot()
-				if file:
-					with open(file, "w") as fd:
-						fd.write(dot)
-						fd.flush()
-						fsync(fd.fileno())
-				else:
-					print(dot)
+				print_state = True
 			elif cmd == "save":
 				with open(args, "wb") as fd:
 					pickle.dump(carto, fd)
@@ -92,8 +88,26 @@ def cli(carto, file=None):
 				with open(args, "rb") as fd:
 					carto = pickle.load(fd)
 				print("Cartographer loaded from {}".format(args))
+				print_state = True
+			elif cmd == "import":
+				with open(args, "rb") as fd:
+					other = pickle.load(fd)
+				for node in other.nodes.values():
+					if node.question in carto.questions:
+						carto.expand(carto.questions[node.question], node.answer)
+				print("Map imported from Cartographer {}".format(args))
+				print_state = True
 			else:
 				print("Command unknown")
+			if print_state:
+				dot = carto.to_dot()
+				if file:
+					with open(file, "w") as fd:
+						fd.write(dot)
+						fd.flush()
+						fsync(fd.fileno())
+				else:
+					print(dot)
 		print("")
 		text = input("> ")
 
