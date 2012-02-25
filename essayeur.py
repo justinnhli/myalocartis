@@ -10,7 +10,7 @@ import sys
 
 from lingtools import stem as stem_word, is_stop_word
 
-class Node:
+class _Node:
 	def __init__(self, qid, question=None, answer=None):
 		self.qid = qid
 		self.question = (question if question else "")
@@ -42,10 +42,9 @@ class Cartographer:
 		if source in self.nodes:
 			self.nodes[source].answer = text
 		else:
-			self.nodes[source] = Node(source, "", text)
-		for word, stem in ((word, stem_word(word)) for word in text.split()):
-			if not is_stop_word(word):
-				self.add(source, "define \"{}\"".format(word.lower()))
+			self.nodes[source] = _Node(source, "", text)
+		self.clarify(source, text)
+		self.define(source, text)
 		dot = self.to_dot()
 
 	def add(self, source, question):
@@ -54,7 +53,7 @@ class Cartographer:
 			if qid != source:
 				self.nodes[qid].sources.add(source)
 		else:
-			node = Node(self.qid, question)
+			node = _Node(self.qid, question)
 			node.sources.add(source)
 			self.nodes[self.qid] = node
 			self.questions[question] = self.qid
@@ -62,11 +61,29 @@ class Cartographer:
 
 	def to_dot(self):
 		result = ["digraph {",]
+		result.append("    layout=neato")
+		result.append("    start=Q0")
 		result.append("    overlap=scalexy")
 		for qid, node in self.nodes.items():
 			result.extend(node.to_dot_list())
 		result.append("}")
 		return "\n".join(result)
+
+	def clarify(self, source, text):
+		for word in text.lower().split():
+			if word in ("we", "us", "our", "ours", "ourselves", "we'd", "we'll", "we're", "we've"):
+				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+			elif word in ("he", "him", "his", "himself", "he'd", "he'll", "he's", "she", "her", "hers", "herself", "she'd", "she'll", "she's"):
+				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+			elif word in ("it", "its", "itself", "it's"):
+				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+			elif word in ("they", "them", "their", "theirs", "themselves", "they'd", "they'll", "they're", "they've"):
+				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+
+	def define(self, source, text):
+		for word, stem in ((word, stem_word(word)) for word in text.split()):
+			if not is_stop_word(word):
+				self.add(source, "define \"{}\"".format(word))
 
 def cli(carto, file=None):
 	text = ""
@@ -100,14 +117,13 @@ def cli(carto, file=None):
 			else:
 				print("Command unknown")
 			if print_state:
-				dot = carto.to_dot()
 				if file:
 					with open(file, "w") as fd:
-						fd.write(dot)
+						fd.write(carto.to_dot())
 						fd.flush()
 						fsync(fd.fileno())
 				else:
-					print(dot)
+					print("\n".join("{}\t{}".format(qid, node.question) for qid, node in carto.nodes.items() if node.question))
 		print("")
 		text = input("> ")
 
