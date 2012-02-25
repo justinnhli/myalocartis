@@ -85,6 +85,12 @@ class Cartographer:
 			if not is_stop_word(word):
 				self.add(source, "define \"{}\"".format(word))
 
+	def justify(self, source, text):
+		if "the fact that" in text:
+			self.add(source, "justify \"{}\"".format(re.search("the fact that (.*)", text).group(1)))
+		if "despite" in text:
+			self.add(source, "justify \"{}\"".format(re.search("despite (.*)", text).group(1)))
+
 def cli(carto, file=None):
 	text = ""
 	while not text[:4] in ("exit", "quit"):
@@ -123,7 +129,7 @@ def cli(carto, file=None):
 						fd.flush()
 						fsync(fd.fileno())
 				else:
-					print("\n".join("{}\t{}".format(qid, node.question) for qid, node in carto.nodes.items() if node.question))
+					print("\n".join("{}\t{}".format(qid, node.question) for qid, node in carto.nodes.items() if not node.answer))
 		print("")
 		text = input("> ")
 
