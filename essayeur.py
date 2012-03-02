@@ -2,7 +2,6 @@
 
 from bisect import bisect
 from os import fsync
-import pickle
 import random
 import itertools
 import re
@@ -16,17 +15,17 @@ class _Node:
 		self.question = (question if question else "")
 		self.answer = (answer if answer else "")
 		self.sources = set()
+		self.hide = False
 	def to_dot_list(self):
 		format_map = {
 				"qid":self.qid,
 				"question":self.question.replace('"', r'\"'),
 				"answer":self.answer.replace('"', r'\"'),
 				}
-		result = []
-		if self.answer:
-			result.append("    Q{qid} [label=\"Q{qid}\\n{question}\\n{answer}\"]".format(**format_map))
+		if self.question:
+			result = ["    Q{qid} [label=\"Q{qid}\\n{question}\\n{answer}\"]".format(**format_map),]
 		else:
-			result.append("    Q{qid} [label=\"Q{qid}\\n{question}\"]".format(**format_map))
+			result = ["    Q{qid} [style=\"bold\", label=\"Q{qid}\\n{question}\\n{answer}\"]".format(**format_map),]
 		for source in self.sources:
 			result.append("    Q{source} -> Q{qid}".format(source=source, qid=self.qid))
 		return result
@@ -43,9 +42,12 @@ class Cartographer:
 			self.nodes[source].answer = text
 		else:
 			self.nodes[source] = _Node(source, "", text)
+		self.ask(source, text)
+
+	def ask(self, source, text):
 		self.clarify(source, text)
 		self.define(source, text)
-		dot = self.to_dot()
+		self.justify(source, text)
 
 	def add(self, source, question):
 		if question in self.questions:
@@ -59,31 +61,76 @@ class Cartographer:
 			self.questions[question] = self.qid
 			self.qid += 1
 
+	def hide(self, qid):
+		self.nodes[qid].hide = True
+
 	def to_dot(self):
 		result = ["digraph {",]
 		result.append("    layout=neato")
-		result.append("    start=Q0")
+		result.append("    start=Q{}".format(self.questions[""]))
 		result.append("    overlap=scalexy")
 		for qid, node in self.nodes.items():
 			result.extend(node.to_dot_list())
 		result.append("}")
 		return "\n".join(result)
 
+	def from_dot(self, text):
+		edges = {}
+		mapping = {}
+		for line in text.split("\n"):
+			line = line.strip()
+			if line.startswith("Q"):
+				if re.match("^Q[0-9]+ -> Q[0-9]+$", line):
+					edge = re.match("^Q([0-9]+) -> Q([0-9]+)$", line)
+					srcs = edges.setdefault(int(edge.group(2)), set())
+					srcs.add(int(edge.group(1)))
+				else:
+					qid = int(re.match("Q[0-9]+", line).group(0)[1:])
+					label = re.search(r'label="Q{}\\n(.*)\\n(.*)"'.format(qid), line)
+					question = re.sub(r'\\"', '"', label.group(1))
+					answer = label.group(2)
+					if question in self.questions:
+						mapping[qid] = self.questions[question]
+						qid = mapping[qid]
+						if not self.nodes[qid].answer:
+							self.nodes[qid].answer = answer
+					else:
+						mapping[qid] = self.qid
+						qid = self.qid
+						self.nodes[qid] = _Node(self.qid, question, answer)
+						self.questions[question] = qid
+						self.qid += 1
+					self.ask(qid, answer)
+		for dest, srcs in edges.items():
+			dest = mapping[dest]
+			for src in srcs:
+				self.nodes[dest].sources.add(mapping[src])
+
 	def clarify(self, source, text):
 		for word in text.lower().split():
-			if word in ("we", "us", "our", "ours", "ourselves", "we'd", "we'll", "we're", "we've"):
-				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
-			elif word in ("he", "him", "his", "himself", "he'd", "he'll", "he's", "she", "her", "hers", "herself", "she'd", "she'll", "she's"):
-				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
-			elif word in ("it", "its", "itself", "it's"):
-				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
-			elif word in ("they", "them", "their", "theirs", "themselves", "they'd", "they'll", "they're", "they've"):
-				self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+			word = re.sub("[^[^'0-9A-Za-z]$", "", word.lower())
+			word = re.sub("^[^'0-9A-Za-z]*", "", word)
+			if word:
+				if word in ("we", "us", "our", "ours", "ourselves", "we'd", "we'll", "we're", "we've"):
+					self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+				elif word in ("he", "him", "his", "himself", "he'd", "he'll", "he's", "she", "her", "hers", "herself", "she'd", "she'll", "she's"):
+					self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+				elif word in ("it", "its", "itself", "it's"):
+					self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+				elif word in ("they", "them", "their", "theirs", "themselves", "they'd", "they'll", "they're", "they've"):
+					self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
+				elif word in ("something", "someone"):
+					self.add(source, "clarify \"{}\"".format(word))
 
 	def define(self, source, text):
 		for word, stem in ((word, stem_word(word)) for word in text.split()):
-			if not is_stop_word(word):
-				self.add(source, "define \"{}\"".format(word))
+			word = re.sub("[^[^'0-9A-Za-z]$", "", word.lower())
+			word = re.sub("^[^'0-9A-Za-z]*", "", word)
+			if word:
+				word = re.sub("[^[^'0-9A-Za-z]$", "", word)
+				word = re.sub("^[^'0-9A-Za-z]*", "", word)
+				if not is_stop_word(word):
+					self.add(source, "define \"{}\"".format(word.lower()))
 
 	def justify(self, source, text):
 		if "the fact that" in text:
@@ -92,44 +139,45 @@ class Cartographer:
 			self.add(source, "justify \"{}\"".format(re.search("despite (.*)", text).group(1)))
 
 def cli(carto, file=None):
-	text = ""
+	if file:
+		text = "load {}".format(file)
+	else:
+		text = ""
 	while not text[:4] in ("exit", "quit"):
-		print_state = False
-		if text:
-			text = re.sub(" +", " ", text.strip())
-			text = re.sub("[^[^'0-9A-Za-z]$", "", text)
-			text = re.sub("^[^'0-9A-Za-z]*", "", text)
+		print_state = True
+		if text and " " in text:
 			cmd, args = text.split(" ", 1)
 			if cmd.isdigit():
+				if args == '""':
+					args = ''
 				carto.expand(int(cmd), args)
-				print_state = True
-			elif cmd == "save":
-				with open(args, "wb") as fd:
-					pickle.dump(carto, fd)
-				print("Cartographer saved to {}".format(args))
-			elif cmd == "load":
-				with open(args, "rb") as fd:
-					carto = pickle.load(fd)
-				print("Cartographer loaded from {}".format(args))
-				print_state = True
-			elif cmd == "import":
-				with open(args, "rb") as fd:
-					other = pickle.load(fd)
-				for node in other.nodes.values():
-					if node.question in carto.questions:
-						carto.expand(carto.questions[node.question], node.answer)
-				print("Map imported from Cartographer {}".format(args))
-				print_state = True
 			else:
-				print("Command unknown")
-			if print_state:
-				if file:
-					with open(file, "w") as fd:
+				if cmd == "delete":
+					for arg in args.split(" "):
+						carto.remove(int(arg))
+				elif cmd == "load":
+					with open(args, "r") as fd:
+						carto.from_dot(fd.read())
+					print("Cartographer loaded from {}".format(args))
+				elif cmd == "save":
+					with open(args, "w") as fd:
 						fd.write(carto.to_dot())
-						fd.flush()
-						fsync(fd.fileno())
+					print("Cartographer saved to {}".format(args))
+					print_state = False
 				else:
-					print("\n".join("{}\t{}".format(qid, node.question) for qid, node in carto.nodes.items() if not node.answer))
+					print("Command unknown")
+					print_state = False
+		else:
+			print("Command unknown")
+			print_state = False
+		if print_state:
+			if file:
+				with open(file, "w") as fd:
+					fd.write(carto.to_dot())
+					fd.flush()
+					fsync(fd.fileno())
+			else:
+				print("\n".join("{}\t{}".format(qid, node.question) for qid, node in carto.nodes.items() if not node.answer))
 		print("")
 		text = input("> ")
 
