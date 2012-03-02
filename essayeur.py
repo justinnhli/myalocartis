@@ -22,10 +22,15 @@ class _Node:
 				"question":self.question.replace('"', r'\"'),
 				"answer":self.answer.replace('"', r'\"'),
 				}
-		if self.question:
-			result = ["    Q{qid} [label=\"Q{qid}\\n{question}\\n{answer}\"]".format(**format_map),]
+		attrs = []
+		if not self.question:
+			attrs.append(("style", "bold"))
+		if self.answer:
+			attrs.append(("color", "#4E9A06"))
 		else:
-			result = ["    Q{qid} [style=\"bold\", label=\"Q{qid}\\n{question}\\n{answer}\"]".format(**format_map),]
+			attrs.append(("color", "#A40000"))
+		attrs.append(("label", "Q{qid}\\n{question}\\n{answer}".format(**format_map)))
+		result = ["    Q{} [{}]".format(self.qid, ", ".join("{}=\"{}\"".format(key, value) for key, value in attrs)),]
 		for source in self.sources:
 			result.append("    Q{source} -> Q{qid}".format(source=source, qid=self.qid))
 		return result
