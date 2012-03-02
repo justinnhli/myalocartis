@@ -2,12 +2,15 @@
 
 from bisect import bisect
 from os import fsync
+from os.path import exists as file_exists
 import random
 import itertools
 import re
 import sys
 
 from lingtools import stem as stem_word, is_stop_word
+
+CUSTOM_STOP_LIST = ("something", "someone")
 
 class _Node:
 	def __init__(self, qid, question=None, answer=None):
@@ -72,10 +75,11 @@ class Cartographer:
 	def to_dot(self):
 		result = ["digraph {",]
 		result.append("    layout=neato")
-		result.append("    start=Q{}".format(self.questions[""]))
 		result.append("    overlap=scalexy")
-		for qid, node in self.nodes.items():
-			result.extend(node.to_dot_list())
+		if self.nodes:
+			result.append("    start=Q{}".format(self.questions[""]))
+			for qid, node in self.nodes.items():
+				result.extend(node.to_dot_list())
 		result.append("}")
 		return "\n".join(result)
 
@@ -134,7 +138,7 @@ class Cartographer:
 			if word:
 				word = re.sub("[^[^'0-9A-Za-z]$", "", word)
 				word = re.sub("^[^'0-9A-Za-z]*", "", word)
-				if not is_stop_word(word):
+				if not is_stop_word(word, CUSTOM_STOP_LIST):
 					self.add(source, "define \"{}\"".format(word.lower()))
 
 	def justify(self, source, text):
@@ -157,13 +161,16 @@ def cli(carto, file=None):
 					args = ''
 				carto.expand(int(cmd), args)
 			else:
-				if cmd == "delete":
-					for arg in args.split(" "):
-						carto.remove(int(arg))
-				elif cmd == "load":
-					with open(args, "r") as fd:
-						carto.from_dot(fd.read())
-					print("Cartographer loaded from {}".format(args))
+				if cmd == "load":
+					if file_exists(args):
+						with open(args, "r") as fd:
+							carto.from_dot(fd.read())
+						print("Cartographer loaded from {}".format(args))
+				elif cmd == "new":
+					qid = carto.qid
+					carto.qid += 1
+					carto.expand(qid, args)
+					carto.questions[""] = qid
 				elif cmd == "save":
 					with open(args, "w") as fd:
 						fd.write(carto.to_dot())
