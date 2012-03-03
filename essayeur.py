@@ -8,7 +8,7 @@ import itertools
 import re
 import sys
 
-from lingtools import stem as stem_word, is_stop_word
+from lingtools import stem as stem_word, is_stop_word, pos_tag
 
 CUSTOM_STOP_LIST = ("something", "someone")
 
@@ -50,10 +50,12 @@ class Cartographer:
 			self.nodes[source].answer = text
 		else:
 			self.nodes[source] = _Node(source, "", text)
-		self.ask(source, text)
+		if text:
+			self.ask(source, text)
 
 	def ask(self, source, text):
 		self.clarify(source, text)
+		self.decompose(source, text)
 		self.define(source, text)
 		self.justify(source, text)
 
@@ -109,7 +111,8 @@ class Cartographer:
 						self.nodes[qid] = _Node(self.qid, question, answer)
 						self.questions[question] = qid
 						self.qid += 1
-					self.ask(qid, answer)
+					if answer:
+						self.ask(qid, answer)
 		for dest, srcs in edges.items():
 			dest = mapping[dest]
 			for src in srcs:
@@ -130,6 +133,13 @@ class Cartographer:
 					self.add(source, "clarify \"{}\"".format(re.sub("'.*", "", word)))
 				elif word in ("something", "someone"):
 					self.add(source, "clarify \"{}\"".format(word))
+
+	def decompose(self, source, text):
+		question = self.nodes[source].question
+		if question.startswith("define "):
+			word = question[7:-1]
+			if pos_tag(word) == "verb":
+				self.add(source, "decompose \"{}\"".format(word.lower()))
 
 	def define(self, source, text):
 		for word, stem in ((word, stem_word(word)) for word in text.split()):
