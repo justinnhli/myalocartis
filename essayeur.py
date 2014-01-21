@@ -119,6 +119,13 @@ class Cartographer:
 			for src in srcs:
 				self.nodes[dest].sources.add(mapping[src])
 
+	def generalize(self, source, text):
+		question = self.nodes[source].question
+		if question.startswith("define "):
+			word = question[8:-1]
+			if pos_tag(word) == "noun":
+				self.add(source, "generalize \"{}\"".format(word.lower())) # superset?
+
 	def clarify(self, source, text):
 		for word in text.lower().split():
 			word = re.sub("[^[^'0-9A-Za-z]$", "", word.lower())
