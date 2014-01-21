@@ -49,6 +49,7 @@ class Cartographer:
 		if source in self.nodes:
 			self.nodes[source].answer = text
 		else:
+			self.questions[""] = source
 			self.nodes[source] = _Node(source, "", text)
 		if text:
 			self.ask(source, text)
@@ -137,7 +138,7 @@ class Cartographer:
 	def decompose(self, source, text):
 		question = self.nodes[source].question
 		if question.startswith("define "):
-			word = question[7:-1]
+			word = question[8:-1]
 			if pos_tag(word) == "verb":
 				self.add(source, "decompose \"{}\"".format(word.lower()))
 
@@ -165,7 +166,7 @@ def cli(carto, file=None):
 	while not text[:4] in ("exit", "quit"):
 		print_state = True
 		if text and " " in text:
-			cmd, args = text.split(" ", 1)
+			cmd, args = text.strip().split(" ", 1)
 			if cmd.isdigit():
 				if args == '""':
 					args = ''
