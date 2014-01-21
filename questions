@@ -1,0 +1,100 @@
+
+questions
+
+	presentation
+		how should ___ be framed/presented?
+
+	process
+		how can ___ be done?
+		what steps are necessary to make ___ statement true?
+
+	teleological
+		what are you trying to do?
+		how does this achieve the goal?
+
+	evaluation
+		how is ___ useful?
+		why is ___ important?
+		what do I care about ___?
+	balance
+		what are the tradeoffs involved?
+
+	epistemic
+		what justifications do you have for ___ assumption/statement?
+		why is ___ true?
+		how do you know that ___?
+
+	prediction
+		what are the consequences of ___ being true?
+		why could (or could not) ___ have been predicted?
+		what led to ___ being true?
+
+	reduction
+		what are the components of ___?
+	specialization
+		what is the difference between a ___ and a ___?
+	generalize
+		what other things have the same structure?
+		what if you substitute something else for ___?
+	concretize
+		what do you mean by ___?
+		can you give an example of ___?
+	exploration
+		what is the space of possible ___?
+
+	relationships
+		how are ___ and ___ related?
+
+	quantities
+		if ___ is increased, what happens to ___?
+
+	meta
+		what is another answer to this question?
+		under what conditions is this answer wrong?
+
+		so what? FIXME
+		what problem are you trying to solve?
+		where does ___ come from?
+		why? FIXME
+
+types of expressions
+	assumptions
+	answers
+	questions
+	reasons
+	observations
+	rephrasings
+	solutions
+	problems
+	actions
+	definitions
+	justifications
+	explanations
+	example
+
+templates
+	characterize %s
+		conditions
+		responses
+			What makes %s special?
+	not-cause %cause %effect
+		conditions
+			... %effect despite %cause
+		responses
+			Why shouldn't %cause leads to %effect?
+	cause %cause %effect
+		conditions
+		responses
+			Why should %cause lead to %effect?
+	define %s
+		conditions
+		responses
+			What do you mean by "%s"?
+	justify %s
+		conditions
+			... the fact that %s.
+			... despite %s.
+		responses
+			Why do you say that "%s"?
+			What evidence do you have for this "fact", that "%s"?
+			How do you know that "%s"?
